@@ -25,7 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'position_list = RGSE_python.position_list:main',
-            'rmi_test = RGSE_python.RMI_test:main'
+            'rmi_position_list = RGSE_python.RMI_position_list:main'
         ],
     },
 )
