@@ -10,12 +10,13 @@ class JointPositionPublisher(Node):
     def __init__(self):
         super().__init__("position_publisher")
 
+        # Setup of defaults
         self.future = rclpy.task.Future()
         self.joint_names = []
         self.initial_positions = []
         self.target = []
-
         self.period = float(10.0)  # seconds
+        self.minperiod = float(3.0)  # seconds
 
         #Create readout for the joint states
         self.joint_state_sub = self.create_subscription(
@@ -26,27 +27,33 @@ class JointPositionPublisher(Node):
         self.traj_pub = self.create_publisher(
             JointTrajectory, "/joint_trajectory_controller/joint_trajectory", 10
         )
-
         self.publish_timer = self.create_timer(0.1, self.publish_trajectory_list)
 
     def joint_state_callback(self, msg):
+        # Readout of current joint state
         self.joint_names = list(msg.name)
         self.initial_positions = list(msg.position)
 
     def publish_trajectory_list(self):
+        # Period correction
+        self.period = max(self.period, self.minperiod)
 
+        # Wait for initial joint state to be received
         if len(self.initial_positions) == 0:
             self.get_logger().info("Waiting for initial joint states...")
             return
 
+        # Print initial joint state
         initial_positions_print = [round(val,3) for val in self.initial_positions]
         self.get_logger().info(
             f"\nCaptured initial joint states: \n {initial_positions_print}\n"
         )
 
+        # Initiate message
         msg = JointTrajectory()
         msg.joint_names = self.joint_names
 
+        # Add trajectory target to message
         t = self.period
         point = JointTrajectoryPoint()
         point.time_from_start.sec = int(t)
@@ -56,13 +63,15 @@ class JointPositionPublisher(Node):
 
         self.traj_pub.publish(msg)
 
+
+        # Print target position
         target_print = [round(val,3) for val in self.target]
         self.get_logger().info(f"\nPublished position: \n {target_print}")
         print("----------------------------------------------------------\n")
         self.publish_timer.cancel()
         self.future.set_result(True)
 
-####################################################33
+####################################################################################
 
 def main():
     rclpy.init()
@@ -72,34 +81,43 @@ def main():
     '''INPUTS'''
     
     
-    list_name = input('\nEnter the name of the position list (with .csv): ')
+    list_name = str(input('\nEnter the name of the position list (with .csv): '))
     period = float(input('\nEnter the period for each motion (in seconds): '))
-
 
     '''CORE'''
 
     print("\n----------------------------------------------------------")
 
+    # Read CSV
     target_list = []
-    with open('/home/rgse/ws_fanuc/src/RGSE_python/position_lists/' + list_name, newline='') as csvfile:
-        read_csv = csv.reader(csvfile, delimiter=',')
-        for row in read_csv:
-            for i in range(len(row)):
-                row[i] = math.radians(float(row[i]))
-            target_list.append(list(row))
+    try:
+        with open('/home/rgse/ws_fanuc/src/RGSE_python/position_lists/' + list_name, newline='') as csvfile:
+            read_csv = csv.reader(csvfile, delimiter=',')
+            for row in read_csv:
+                for i in range(len(row)):
+                    row[i] = math.radians(float(row[i]))
+                target_list.append(list(row))
 
+    except FileNotFoundError:
+        print(f"Error: File not found: {list_name}")
+        return
+
+    # Target list readout loop
     count = 0
     for target in target_list:
         count += 1
+
+        # Confirm to go to next position
+
         while True:
-            Confirm = input('Continue to next pos? (y): ')
+            Confirm = input('Continue to next pose? (y): ')
             if Confirm == "Y" or Confirm == "y":
                 print()
                 break
             else:
                 print('Wrong input\n')
 
-        #Creating & Running Node
+        #Creating & Running trajectory publisher node
 
         print("----------------------------------------------------------")
         print(f"Position {count}\n")
@@ -115,6 +133,8 @@ def main():
 
     print('\nEnd of list')
 
+    # Shutdown sequence to allow zeroing robot before exit
+
     while True:
         confirm_zero = input('\nZero the robot? (y/n): ')
         if confirm_zero == "y":
@@ -129,9 +149,11 @@ def main():
             node.destroy_node()
             print('\nZero complete, Exiting program\n')
             break
+
         elif confirm_zero == "n":
             print('\nExiting program\n')
             break
+
         else:
             print('\nWrong input\n')
             return
