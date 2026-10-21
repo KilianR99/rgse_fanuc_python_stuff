@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'position_list = RGSE_python.position_list:main',
+            'haply_main = RGSE_python.haply_main:main',
             'rmi_position_list = RGSE_python.RMI_position_list:main'
         ],
     },
