@@ -1,13 +1,20 @@
 import argparse
-import json
 import asyncio
 import websockets
-import rclpy
+
+import threading
+import queue
+import signal
+
 import csv
 import math
+import json
+
 from datetime import datetime, timedelta
-from rclpy.node import Node
 import time
+
+import rclpy
+from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
@@ -79,7 +86,7 @@ class JointPositionPublisher(Node):
         self.publish_timer.cancel()
         self.future.set_result(True)
 
-async def fanuc_main():
+def fanuc_main():
 
     rclpy.init()
         
@@ -281,12 +288,30 @@ async def connect(full, query_config):
         except (websockets.ConnectionClosed, asyncio.CancelledError):
             print("\nWebSocket has been closed")
 
-def main():
+
+def haply_main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--full", action="store_true",
                         help="Print the full raw JSON payload instead of the one-line summary")
     parser.add_argument("--query-config", action="store_true",
                         help="Request session.force_render_full_state on every tick so every frame includes the `config` block")
     args = parser.parse_args()
+
     asyncio.run(connect(args.full, args.query_config))
-    asyncio.run(fanuc_main())
+
+def main():
+    haply_thread = threading.Thread(target=haply_main,name="haply_main")
+    haply_thread.daemon = True
+
+    fanuc_thread = threading.Thread(target=fanuc_main,name="fanuc_main")
+    fanuc_thread.daemon = False
+
+    haply_thread.start()
+    fanuc_thread.start()
+
+if __name__ == "__main__":
+    main()
+
+
+
+    
